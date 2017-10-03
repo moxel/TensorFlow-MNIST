@@ -1,0 +1,16 @@
+name: mnist
+tag: latest
+image: py2-tf
+assets:
+- mnist/data
+- models
+resources:
+  memory: 512Mi
+  cpu: "1"
+input_space:
+  img: image
+output_space:
+  out: int
+main:
+  type: python
+  entrypoint: serve.py::predict

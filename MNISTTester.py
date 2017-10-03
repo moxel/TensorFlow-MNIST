@@ -4,7 +4,7 @@ import os
 
 from PIL import Image, ImageFilter
 from random import randint
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from MNIST import MNIST
 
 
@@ -66,8 +66,7 @@ class MNISTTester(MNIST):
         data = self.load_image(filename)
 
         number, accuracy = self.classify({self.X: data})
-
-        self.print_status('%d is %s, accuracy: %f' % (number, os.path.basename(filename), accuracy))
+        return number
 
     def load_image(self, filename):
         img = Image.open(filename).convert('L')

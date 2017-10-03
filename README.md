@@ -1,79 +1,98 @@
 # MNIST with TensorFlow
 
-- Just for training TensorFlow and Deep Learning
-- Try to make easy to understand building layers and using TensorFlow
-    - write summaries for TensorBoard
-    - save and load a model and reuse for prediction
-- Pre-trained model with default options is included
-    - you can test prediction and TensorBoard without any hassle
+This tutorial shows how to wrap a basic MNIST model in Tensorflow and upload it to Moxel.
 
-## Class
+## Wrap Model in `serve.py`
 
-- **MNIST** : building model (currently CNN only)
-- **MNISTTrainer** : training logic and steps
-- **MNISTTester** : test trained model and an image
-- **TFUtils** : Xavier initialization and a small utilities for my laziness
+Moxel will upload your git repository to cloud, together with large model files such as weights. You simply need to write a `serve.py` file, which may import your existing modules.
 
-## Excutable Scripts
-
-- **train.py** : can use below options
-    - learning_rate=0.001
-    - decay=0.9
-    - training_epochs=10
-    - batch_size=100
-    - p_keep_conv=0.8
-    - p_keep_hidden=0.5
-- **test.py**
-    - prediction test with MNIST test set
-    - prediction test with image file
-        - only for square images and single number
-        - size is not matter
-
-## Results
+The `serve.py` file first initializes global resources, such as the MNIST predictor, and some global constants.
 
 ```
-➜  TensorFlow-MNIST# python train.py 
-Preparing MNIST data..
-Extracting mnist/data/train-images-idx3-ubyte.gz
-Extracting mnist/data/train-labels-idx1-ubyte.gz
-Extracting mnist/data/t10k-images-idx3-ubyte.gz
-Extracting mnist/data/t10k-labels-idx1-ubyte.gz
----
-Building CNN model..
----
-Start training. Please be patient. :-)
-Epoch: 0001 / Accuracy = 0.9511
-Epoch: 0002 / Accuracy = 0.9634
-...
----
-Saving my model..
----
-Learning Finished!
+import os
+import moxel.space
+
+from MNISTTester import MNISTTester
+
+mnist = MNISTTester(
+            model_path='mnist/data/',
+            data_path='/models/mnist-cnn')
 ```
 
-```
-➜  TensorFlow-MNIST# python test.py
----
-Loading a model..
-Preparing MNIST data..
-Extracting mnist/data/train-images-idx3-ubyte.gz
-Extracting mnist/data/train-labels-idx1-ubyte.gz
-Extracting mnist/data/t10k-images-idx3-ubyte.gz
-Extracting mnist/data/t10k-labels-idx1-ubyte.gz
----
-Calculating accuracy of test set..
----
-CNN accuracy of test set: 0.993600
----
-Predict random item: 5 is 5, accuracy: 1.000
----
-4 is digit-4.png, accuracy: 1.000000
----
-2 is digit-2.png, accuracy: 1.000000
----
-5 is digit-5.png, accuracy: 0.997631
-```
+Every time someone calls your model, Moxel would handle the request with your `predict` function. In the MNIST case, the predict function is,
 
 ```
-➜  TensorFlow-MNIST# tensorboard --logdir=logs/mnist-cnn
+def predict(img):
+    img_bw = img.to_PIL().convert('L')
+    img_bw = moxel.space.Image.from_PIL(img_bw)
+    out = mnist.predict(img_bw.to_stream())
+    return {'out': out}
 ```
+
+The function takes an input `img` and produces one output `out`. Note that all `predict` functions must have a dict as output, with variable names being the keys.
+
+## Write Model Spec File `moxel.yml`
+
+Now, write a model spec file that tells Moxel how to serve the model. Start a `moxel.yml`:
+
+```
+name: mnist
+tag: latest
+image: py2-tf
+assets:
+- mnist/data
+- models
+resources:
+  memory: 512Mi
+  cpu: "1"
+input_space:
+  img: image
+output_space:
+  out: int
+main:
+  type: python
+  entrypoint: serve.py::predict
+```
+
+In this example, we've specified the model should be run in `py2-tf` environment - Tensorflow 1.0 with Python 2. The input is `img` of type `image`, and the output is `out` of type int.
+
+The `main` tells Moxel how to load the model. The entrypoint `serve.py::predict` says we should process request with the `predict` function in `serve.py`.
+
+
+## Test Model Locally
+
+Moxel allows you to test your model locally. This is as simple as 
+
+```
+moxel serve -f moxel.yml
+```
+
+This will start a HTTP server locally, listening at `localhost:5900`.
+
+To use the API locally, try `test.py`
+
+```
+import moxel
+
+model = moxel.Model('strin/mnist:latest', where='localhost')
+image = moxel.space.Image.from_file('imgs/digit-2-rgb.png')
+digit = model.predict(img=image)
+print 'digit=', digit
+```
+
+Run `test.py` and see if the output is `2`.
+
+## Push Model to Moxel
+
+Just run 
+
+```
+moxel push
+```
+
+After a few seconds, your model would be live at Moxel, and you can play around with the demo.
+
+
+
+
+
